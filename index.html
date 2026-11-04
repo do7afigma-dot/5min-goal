@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>5min goal</title>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#ffffff">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#fff;--ink:#000;--mute:#6b6b6b;--ok:#1d4ed8;--line:#000;--ghost:#ececec;--px:#222}
+@media(prefers-color-scheme:dark){:root{--bg:#000;--ink:#fff;--mute:#9a9a9a;--ok:#7aa2ff;--line:#fff;--ghost:#1c1c1c;--px:#e6e6e6}}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:17px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+#app{max-width:480px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding:20px}
+h1{font-size:28px;line-height:1.15;margin:0 0 6px;font-weight:700}
+p{margin:0 0 14px}.mute{color:var(--mute)}.small{font-size:14px}
+label{display:block;font-weight:600;margin:18px 0 6px}
+input{width:100%;font:inherit;color:inherit;background:transparent;border:2px solid var(--line);padding:12px;border-radius:0}
+input:focus,button:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
+button{font:inherit;font-weight:700;color:var(--bg);background:var(--ink);border:2px solid var(--line);padding:14px 16px;border-radius:0;width:100%;cursor:pointer}
+button.alt{background:transparent;color:var(--ink)}
+button.lnk{background:none;color:var(--ink);border:0;padding:0;width:auto;font-weight:400;font-size:14px;text-decoration:underline;text-underline-offset:3px}
+.big{padding:26px 16px;font-size:24px}
+.row{display:flex;gap:10px;margin-top:12px}.row button{flex:1}
+nav{display:flex;border-top:2px solid var(--line);margin:auto -20px -20px}
+nav button{background:transparent;color:var(--mute);border:0;border-right:2px solid var(--line);padding:16px 0}
+nav button:last-child{border-right:0}nav button.on{color:var(--ink);text-decoration:underline;text-underline-offset:6px}
+main{flex:1;padding-bottom:24px}
+.goal{border-left:6px solid var(--ink);padding:2px 0 2px 14px;margin:6px 0 22px}
+.goal b{display:block;font-size:22px}
+.timer{font-size:76px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-2px;margin:30px 0 8px}
+.bar{height:14px;border:2px solid var(--line);margin:8px 0 6px}.bar i{display:block;height:100%;background:var(--ink)}
+.li{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--mute)}
+.li:first-child{border-top:1px solid var(--mute)}
+.yes{color:var(--ok);font-weight:700}.no{color:var(--mute)}
+canvas#cat{display:block;margin:0 auto;image-rendering:pixelated}
+.cx{text-align:center;margin:6px 0 16px}
+[dir=auto]{unicode-bidi:plaintext}
+</style></head><body><div id="app"></div>
+<script>
+const K='fm1',COMMIT=300000,$=s=>document.querySelector(s);
+const MASK=["..##...............................##...............", "..####............................###...............", "..#####..........................####...............", "..######.......................######...............", "..########....................#######...............", "..#########.................##########..............", "..########################.###########..............", "..####################################..............", "..####################################..............", "..####################################..............", "..####################################..............", "..####################################..............", ".#####################################..............", ".#####################################..............", ".#####################################..............", ".#####################################..............", ".####################################...............", "######################################..............", "######################################..............", "###########...############...#########..............", "###########...############...#########..............", "###########...############...#########..............", "######################################..............", "######################################..............", "######################################..............", "######################################..............", ".##################..################...............", ".####################################...............", "..##################################................", "..##################################................", "...################################.................", "....##############################..................", ".....############################...................", ".......#########################...........####.....", "........######################............######....", "..........##################..............######....", ".............#############...............########...", "...........################..............#########..", "..........##################..............########..", ".........####################.............########..", "........######################.............########.", "........#######################............########.", ".......########################.............#######.", "......##########################............#######.", "......##########################............########", "......###########################............#######", ".....############################............#######", ".....############################...........########", ".....#############################..........########", "....##############################..........#######.", "....##############################..........#######.", "....##############################.........########.", "....##############################.........#######..", "....##############################........########..", "....##############################.......#########..", "....##############################.......########...", "....##############################......#########...", "....##############################.....#########....", "....##############################....#########.....", "....##############################...##########.....", ".....#############################..##########......", ".....############################..##########.......", ".....############################.##########........", "......#####################################.........", "......####################################..........", "......###################################...........", ".......#################################............", "........###############################.............", "......################################..............", ".....################################...............", "....################################................", "....###############################.................", "....##############################..................", "......###########################...................", "..........###.....###....###........................"];
+const CW=52,CH=75,TOTAL=2400,ORDER=[];
+for(let r=CH-1;r>=0;r--){const cs=[];for(let c=0;c<CW;c++)if(MASK[r][c]==='#')cs.push(c);cs.sort((a,b)=>Math.abs(a-25.5)-Math.abs(b-25.5)||a-b);cs.forEach(c=>ORDER.push(r*CW+c))}
+if(ORDER.length!==TOTAL)console.error('Cat mask has '+ORDER.length+' cells, expected '+TOTAL);
+let S=JSON.parse(localStorage.getItem(K)||'null'),tab='today',confirming=false,wake=null,ac=null,msg='',remMode=null,remT=null,catK=0,catAnim=0;
+const save=()=>localStorage.setItem(K,JSON.stringify(S));
+const pad=n=>String(n).padStart(2,'0');
+const ymd=t=>{const d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const mmss=ms=>{const s=Math.floor(ms/1000);return pad(Math.floor(s/60))+':'+pad(s%60)};
+const calcXp=(commit,activeMs,planned)=>{if(!commit)return 0;let r=0;if(planned>5)r=20*Math.min(1,Math.max(0,(activeMs/60000-5)/(planned-5)));return Math.round(80+r)};
+const totalXp=()=>S.sessions.reduce((a,s)=>a+s.xp,0);
+function noteOpen(){if(!S)return;const l=S.opens[S.opens.length-1];if(!l||Date.now()-l>30*60000){S.opens.push(Date.now());save()}}
+function cue(){try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}try{if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();[880,1175].forEach((f,i)=>{const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.connect(g);g.connect(ac.destination);const t=ac.currentTime+i*.18;g.gain.setValueAtTime(.25,t);g.gain.exponentialRampToValueAtTime(.001,t+.3);o.start(t);o.stop(t+.3)})}catch(e){}}
+async function lock(){try{if(navigator.wakeLock&&S.run&&!wake)wake=await navigator.wakeLock.request('screen');wake&&wake.addEventListener('release',()=>wake=null)}catch(e){}}
+function unlock(){try{wake&&wake.release()}catch(e){}wake=null}
+function tick(){const r=S&&S.run;if(!r)return;const now=Date.now();let dt=now-r.last;r.last=now;if(document.hidden&&r.active<COMMIT)dt=0;r.active+=dt;
+ if(!r.commit&&r.active>=COMMIT){r.commit=true;r.commitAt=now;cue()}
+ if(!r.pinged&&r.active>=r.planned*60000){r.pinged=true;cue()}
+ save();const t=$('#t');if(t)drawTimer()}
+function drawTimer(){const r=S.run,a=r.active;$('#t').textContent=mmss(a);
+ $('#bar').style.width=Math.min(100,a/COMMIT*100)+'%';
+ $('#st').textContent=r.commit?'5 minutes done. Keep going or finish.':'Stay in the app for the first 5 minutes.';
+ $('#pl').textContent='Planned: '+r.planned+' min'+(r.pinged?' (reached)':'')}
+document.addEventListener('visibilitychange',()=>{if(!S)return;if(S.run){if(document.hidden)tick();else{if(S.run.active<COMMIT){S.run.last=Date.now();S.run.left=(S.run.left||0)+1}tick();lock()}}else if(!document.hidden)noteOpen();if(!document.hidden)schedule()});
+setInterval(tick,500);
+
+/* ---------- Reminder (IndexedDB shared with the service worker) ---------- */
+function idb(){return new Promise((res,rej)=>{const q=indexedDB.open('fm-rem',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
+async function cfgUpdate(p){try{const d=await idb();await new Promise(res=>{const tx=d.transaction('kv','readwrite'),st=tx.objectStore('kv'),r=st.get('cfg');r.onsuccess=()=>st.put(Object.assign({},r.result||{},p),'cfg');tx.oncomplete=res;tx.onerror=res;tx.onabort=res})}catch(e){}}
+function claim(){return idb().then(d=>new Promise(res=>{const tx=d.transaction('kv','readwrite'),st=tx.objectStore('kv'),r=st.get('cfg');let c=null,go=false;
+ r.onsuccess=()=>{c=r.result;if(!c||!c.enabled||!c.time)return;const n=new Date(),hm=c.time.split(':').map(Number);if(n.getHours()*60+n.getMinutes()<hm[0]*60+hm[1])return;const t=ymd(n);if(c.lastSent===t||c.lastDone===t)return;c.lastSent=t;go=true;st.put(c,'cfg')};
+ tx.oncomplete=()=>res(go?c:null);tx.onerror=tx.onabort=()=>res(null)})).catch(()=>null)}
+const lastDone=()=>{const c=S.sessions.filter(s=>s.commit).map(s=>s.start);return c.length?ymd(Math.max.apply(null,c)):''};
+const syncCfg=()=>cfgUpdate({enabled:!!(S.notif&&S.notif.time&&S.notif.perm==='granted'),time:(S.notif&&S.notif.time)||'',action:S.action,lastDone:lastDone()});
+const remBody=a=>a.replace(/[.!?\s]+$/,'')+'. Just 5 minutes.';
+async function regSync(){try{if(!S||!S.notif||S.notif.perm!=='granted'||!('serviceWorker' in navigator))return;const reg=await navigator.serviceWorker.ready;if('periodicSync' in reg)await reg.periodicSync.register('daily-reminder',{minInterval:60*60*1000})}catch(e){}}
+async function fireIfDue(){try{if(S&&!S.run){const c=await claim();if(c){const reg=await navigator.serviceWorker.ready;await reg.showNotification('5 minutes',{body:remBody(c.action||S.action),tag:'daily-5min',icon:'icon-192.png'})}}}catch(e){}schedule()}
+function schedule(){clearTimeout(remT);if(!S||!S.notif||!S.notif.time||S.notif.perm!=='granted')return;const hm=S.notif.time.split(':').map(Number),n=new Date(),at=new Date(n);at.setHours(hm[0],hm[1],0,0);if(at<=n)at.setDate(at.getDate()+1);remT=setTimeout(fireIfDue,at-n+500)}
+function remScreen(){const first=remMode==='onboard',t=(S.notif&&S.notif.time)||'20:00';
+ $('#app').innerHTML=`<main><h1>When should we remind you to start your 5 minutes?</h1><p class="mute">One reminder a day. Only if you haven't done your 5 minutes yet.</p>
+<label for="rt">Time</label><input id="rt" type="time" value="${esc(t)}">
+<p style="margin-top:18px"></p><button id="rok">Set reminder</button>
+<p style="text-align:center;margin-top:16px"><button class="lnk" id="rsk">${first?'Skip':'Cancel'}</button></p></main>`;
+ $('#rok').onclick=async()=>{const tm=$('#rt').value||'20:00';let perm='unsupported';
+  try{if('Notification' in window)perm=await Notification.requestPermission()}catch(e){perm=('Notification' in window)?Notification.permission:'unsupported'}
+  S.notif={time:tm,perm};save();remMode=null;await syncCfg();regSync();schedule();render()};
+ $('#rsk').onclick=()=>{if(first){S.notif={time:'',perm:('Notification' in window)?Notification.permission:'unsupported'};save();syncCfg()}remMode=null;render()}}
+
+/* ---------- Cat ---------- */
+function catDraw(cv,k){catK=k;const cs=getComputedStyle(document.documentElement),g=cs.getPropertyValue('--ghost').trim(),p=cs.getPropertyValue('--px').trim(),u=cv._u,ctx=cv.getContext('2d');
+ ctx.clearRect(0,0,cv.width,cv.height);
+ for(let i=0;i<ORDER.length;i++){ctx.fillStyle=i<k?p:g;const c=ORDER[i];ctx.fillRect((c%CW)*u,Math.floor(c/CW)*u,u,u)}
+ const x=$('#cx');if(x)x.textContent=k>=TOTAL?'Cat complete':k.toLocaleString('en-US')+' / '+TOTAL.toLocaleString('en-US')+' XP'}
+function catInit(){const cv=$('#cat');if(!cv)return;const to=Math.min(totalXp(),TOTAL),dpr=window.devicePixelRatio||1,avail=$('#app').clientWidth-40;
+ const u=Math.max(1,Math.floor(avail*dpr/CW));cv.width=CW*u;cv.height=CH*u;cv.style.width=(CW*u/dpr)+'px';cv.style.height=(CH*u/dpr)+'px';cv._u=u;
+ if(typeof S.shownXp!=='number')S.shownXp=to;const from=Math.min(S.shownXp,to),my=++catAnim;
+ if(S.shownXp!==to){S.shownXp=to;save()}
+ if(to>from&&!matchMedia('(prefers-reduced-motion:reduce)').matches){const t0=performance.now(),D=1500;catDraw(cv,from);
+  const f=now=>{if(my!==catAnim||!cv.isConnected)return;const p=Math.min(1,(now-t0)/D);catDraw(cv,Math.round(from+(to-from)*p));if(p<1)requestAnimationFrame(f)};requestAnimationFrame(f)}
+ else catDraw(cv,to)}
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change',()=>{const cv=$('#cat');if(cv&&cv._u)catDraw(cv,catK)});
+
+function start(){const p=Math.max(5,Math.round(+$('#pm').value||30));S.planned=p;S.run={start:Date.now(),last:Date.now(),active:0,planned:p,commit:false,pinged:false,left:0};confirming=false;msg='';save();try{ac=ac||new (window.AudioContext||window.webkitAudioContext)()}catch(e){}lock();render()}
+function finish(){const r=S.run;const xp=calcXp(r.commit,r.active,r.planned);S.sessions.push({start:r.start,end:Date.now(),planned:r.planned,active:r.active,commit:r.commit,xp,left:r.left||0});S.run=null;confirming=false;unlock();msg=r.commit?'Saved. +'+xp+' XP':'Stopped before 5 minutes. No XP.';save();syncCfg();tab='today';render()}
+function days(){const out=[],f=new Date(S.first);f.setHours(0,0,0,0);const end=new Date();end.setHours(0,0,0,0);
+ for(let d=new Date(f);d<=end;d.setDate(d.getDate()+1)){const k=ymd(d),os=S.opens.filter(t=>ymd(t)===k).length,ss=S.sessions.filter(s=>ymd(s.start)===k);
+  out.push({date:k,opens:os,opened:os>0||ss.length>0,done:ss.some(s=>s.commit),sessions:ss.length,min:Math.round(ss.reduce((a,s)=>a+s.active,0)/60000),xp:ss.reduce((a,s)=>a+s.xp,0)})}return out}
+async function exportCsv(){const rows=['tester_id,name,date,opened,opens,five_min_done,sessions,minutes,xp,notif_time,notif_permission'];
+ const nt=S.notif?S.notif.time:'',np=S.notif?S.notif.perm:'';
+ days().forEach(d=>rows.push([S.id,'"'+S.name.replace(/"/g,'""')+'"',d.date,d.opened?1:0,d.opens,d.done?1:0,d.sessions,d.min,d.xp,nt,np].join(',')));
+ const csv='\ufeff'+rows.join('\n'),name='5min-goal-'+(S.name||S.id).replace(/\W+/g,'_')+'-'+ymd(Date.now())+'.csv';
+ const file=new File([csv],name,{type:'text/csv'});
+ try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'My 5min goal data'});return}}catch(e){if(e.name==='AbortError')return}
+ const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=name;a.click()}
+function setup(){$('#app').innerHTML=`<main><h1>Pick one goal.</h1><p class="mute">You will give it 5 minutes every day. You can't change it later.</p>
+<label for="n">Your name (so I know whose data this is)</label><input id="n" dir="auto" autocomplete="off">
+<label for="g">Your goal</label><input id="g" dir="auto" placeholder="e.g. Pass my exams" autocomplete="off">
+<label for="a">What will you do for 5 minutes today?</label><input id="a" dir="auto" placeholder="e.g. Study physics" autocomplete="off">
+<p id="e" class="small" style="margin-top:10px;color:var(--ok)"></p><button id="ok">Save and start</button></main>`;
+ $('#ok').onclick=()=>{const g=$('#g').value.trim(),a=$('#a').value.trim();if(!g||!a){$('#e').textContent='Fill in your goal and the 5-minute action.';return}
+ S={id:Math.random().toString(36).slice(2,8),name:$('#n').value.trim(),goal:g,action:a,first:Date.now(),opens:[Date.now()],sessions:[],run:null,planned:30};save();remMode='onboard';render()}}
+function render(){if(!S)return setup();if(remMode)return remScreen();const app=$('#app');
+ const nav=`<nav>${[['today','Today'],['sessions','Sessions'],['days','Days']].map(([k,l])=>`<button class="${tab===k?'on':''}" data-t="${k}">${l}</button>`).join('')}</nav>`;
+ let m='';const today=ymd(Date.now()),ts=S.sessions.filter(s=>ymd(s.start)===today);
+ if(S.run&&tab==='today'){const r=S.run;
+  m=`<main><div class="goal"><b dir="auto">${esc(S.goal)}</b><span dir="auto">${esc(S.action)}</span></div>
+  <div class="timer" id="t">00:00</div><div class="bar"><i id="bar"></i></div><p id="st" class="small"></p><p id="pl" class="mute small"></p>
+  ${confirming?`<p><b>${r.commit?'Did you really finish?':'Stop now? Under 5 minutes gives no XP.'}</b></p><div class="row"><button id="yes">${r.commit?'Yes, finished':'Stop'}</button><button class="alt" id="no">Keep going</button></div>`
+  :`<button class="alt" id="fin">Finish</button>`}</main>`;}
+ else if(tab==='today'){const tot=totalXp(),done=ts.some(s=>s.commit),n=S.notif,rt=n&&n.time?esc(n.time)+(n.perm==='granted'?'':' ('+(n.perm==='denied'?'blocked':n.perm==='unsupported'?'not supported':'not allowed')+')'):'off';
+  m=`<main><canvas id="cat" aria-label="Cat made of pixels. Each XP fills one pixel."></canvas><p class="small mute cx" id="cx"></p>
+  <div class="goal"><b dir="auto">${esc(S.goal)}</b><span dir="auto">${esc(S.action)}</span></div>
+  ${msg?`<p class="yes">${esc(msg)}</p>`:''}
+  <p>${done?'<span class="yes">Today: 5 minutes done.</span>':'<span class="no">Today: 5 minutes not done yet.</span>'}</p>
+  <label for="pm">How long will you work today? (minutes)</label><input id="pm" type="number" min="5" inputmode="numeric" value="${S.planned}">
+  <p class="small mute" style="margin-top:6px">First 5 minutes = 80 XP. The rest = up to 20 XP.</p>
+  <button class="big" id="go">Start 5 minutes</button>
+  <p class="mute small" style="margin-top:18px">Total XP: ${tot}</p>
+  <p class="mute small">Reminder: ${rt} <button class="lnk" id="rch">Change</button></p></main>`}
+ else if(tab==='sessions'){m=`<main><h1>Sessions</h1>${S.sessions.length?[...S.sessions].reverse().map(s=>{const d=new Date(s.start);return `<div class="li"><span>${ymd(s.start)} ${pad(d.getHours())}:${pad(d.getMinutes())}<br><span class="mute small">${Math.round(s.active/60000)} of ${s.planned} min</span></span><span class="${s.commit?'yes':'no'}">${s.commit?'+'+s.xp+' XP':'under 5 min'}</span></div>`}).join(''):'<p class="mute">No sessions yet. Start your first 5 minutes.</p>'}</main>`}
+ else{const ds=days(),n=ds.filter(d=>d.done).length;m=`<main><h1>Days</h1><p class="mute">${n} of ${ds.length} days with 5 minutes done.</p>
+  ${[...ds].reverse().map(d=>`<div class="li"><span>${d.date}<br><span class="mute small">${d.opened?'Opened':'Not opened'}</span></span><span class="${d.done?'yes':'no'}">${d.done?'5 min done':'5 min not done'}</span></div>`).join('')}
+  <p class="small mute" style="margin-top:18px">Send me your data at the end of the test.</p><button id="ex">Export my data</button></main>`}
+ app.innerHTML=m+nav;
+ app.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;if(tab!=='today')msg='';render()});
+ const g=id=>$(id);g('#go')&&(g('#go').onclick=start);g('#fin')&&(g('#fin').onclick=()=>{confirming=true;render()});g('#no')&&(g('#no').onclick=()=>{confirming=false;render()});g('#yes')&&(g('#yes').onclick=finish);g('#ex')&&(g('#ex').onclick=exportCsv);g('#rch')&&(g('#rch').onclick=()=>{remMode='change';render()});
+ if(S.run&&tab==='today')drawTimer();
+ if(g('#cat'))catInit()}
+if(S&&S.run){const r=S.run;if(r.active<COMMIT)r.last=Date.now();else{}}
+if(S&&S.notif&&S.notif.perm!=='unsupported'&&'Notification' in window&&S.notif.perm!==Notification.permission){S.notif.perm=Notification.permission;save()}
+noteOpen();render();if(S&&S.run)lock();
+if(S){syncCfg();regSync();schedule()}
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script></body></html>
